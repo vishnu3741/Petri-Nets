@@ -1,8 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <iterator>
 #include <stack>
 #include <queue>
+#include <map>
 using namespace std;
 
 class derRegEx{
@@ -28,7 +30,7 @@ public:
     this->St=s;
   }
   void printDer(){
-    cout<<Ex<<" : "<<St<<" : "<<contE<<endl;
+    cout<<this->Ex<<" : "<<this->St<<" : "<<this->contE<<endl;
     if(this->derSet.size()>0){
       cout<<"{";
       for(int i=0;i<this->derSet.size();i++) cout<<"| "<<this->derSet[i]<<" : "<<this->staSet[i]<<" : "<<this->eSet[i]<<" |";
@@ -40,7 +42,8 @@ public:
 class node{
 public:
   derRegEx value;
-  vector<node*> children;
+  map<char,vector<node*> > children;
+  
   derRegEx retValue(){
     return this->value;
   }
@@ -57,9 +60,13 @@ public:
       if(n->children.size()>0){
 	cout<<'\n';
 	cout<<"children :"<<endl;
-	for(int i=0;i<n->children.size();i++){
-	  list.push(n->children[i]);
-	  cout<<n->children[i]->value.Ex<<" : "<<n->children[i]->value.St<<endl;
+	map<char,vector<node*> >::iterator it;
+	for(it=n->children.begin();it!=n->children.end();it++){
+	  cout<<"Transitions with "<<it->first<<" : "<<endl;
+	  for(int i=0;i<n->children[it->first].size();i++){
+	    list.push(n->children[it->first][i]);
+	    cout<<n->children[it->first][i]->value.Ex<<" : "<<n->children[it->first][i]->value.contE<<endl;
+	  }
 	}
 	cout<<'\n';
       }
@@ -136,6 +143,7 @@ derRegEx fromSymbol(char s,char w,char wrt){
   retObj.setEx(l);
   retObj.setSt(q);
   retObj.setE(false);
+  if(l=="1") retObj.setE(true);
   if(s==wrt){
     retObj.derSet.push_back("1");
     retObj.eSet.push_back(true);
@@ -250,10 +258,12 @@ derRegEx derivative(string regEx,string states,string wrt){
   setEx.push_back(regEx);
   vector<string> setState;
   setState.push_back(states);
+  vector<bool> setE;
   
   for(int i=wrt.size()-1;i>=0;i--){
     vector<string> retList;
     vector<string> retState;
+    vector<bool> retE;
     for(int j=0;j<setEx.size();j++){
       cout<<toPostfix(setEx[j])<<endl;
       cout<<toPostfix(setState[j])<<endl;
@@ -261,17 +271,20 @@ derRegEx derivative(string regEx,string states,string wrt){
       for(int k=0;k<ret.derSet.size();k++) {
 	retList.push_back(ret.derSet[k]);
 	retState.push_back(ret.staSet[k]);
+	retE.push_back(ret.eSet[k]);
       }
     }
+    setE=retE;
     setEx=retList;
     setState=retState;
   }
   
   derRegEx retObj;
   retObj.setEx(regEx);
-  retObj.setSt(regEx);
+  retObj.setSt(states);
   retObj.derSet=setEx;
   retObj.staSet=setState;
+  retObj.eSet=setE;
 
   return retObj;
 }
@@ -288,21 +301,25 @@ node* parDerTree(string s,string state,string wrt){
   while(!list.empty()){
     node* n=list.front();
     list.pop();
-    derRegEx output=derivative(n->value.Ex,n->value.St,wrt);
-    for(int i=0;i<output.derSet.size();i++){
-      bool visited=false;
-      for(int j=0;j<created.size();j++){
-	if(created[j]==output.derSet[i]) visited=true;
+    for(int i=0;i<wrt.size();i++){
+      string wrtS(1,wrt[i]);
+      derRegEx output=derivative(n->value.Ex,n->value.St,wrtS);
+      for(int i=0;i<output.derSet.size();i++){
+	bool visited=false;
+	for(int j=0;j<created.size();j++){
+	  if(created[j]==output.derSet[i]) visited=true;
+	}
+	if(visited) continue;
+	created.push_back(output.derSet[i]);
+	derRegEx *childEx=new derRegEx;
+	childEx->setEx(output.derSet[i]);
+	childEx->setSt(output.staSet[i]);
+	childEx->setE(output.eSet[i]);
+	node* child=new node;
+	child->value=*childEx;
+	n->children[wrtS[0]].push_back(child);
+	list.push(child);
       }
-      if(visited) continue;
-      created.push_back(output.derSet[i]);
-      derRegEx *childEx=new derRegEx;
-      childEx->setEx(output.derSet[i]);
-      childEx->setSt(output.staSet[i]);
-      node* child=new node;
-      child->value=*childEx;
-      n->children.push_back(child);
-      list.push(child);
     }
   }
   return root;
